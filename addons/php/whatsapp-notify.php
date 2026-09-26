@@ -2,7 +2,10 @@
 /**
  * WhatsApp Widget – optional e-mail notification (self-hosted add-on)
  * https://github.com/DOEBELING/WhatsApp-Widget
- * License: GPL-3.0-or-later
+ * Copyright (C) 2025-2026 Andreas Döbeling, DÖBELING Projektbüro
+ * License: AGPL-3.0-or-later with additional terms, see ADDITIONAL-TERMS.md in
+ * the repository. If you change this script and run it for a website, visitors
+ * are its users: offer them the source code of your version (AGPL section 13).
  *
  * Receives the message (and optionally the visitor's phone number) from the
  * widget and sends it to you by e-mail, with a link to reply on WhatsApp.

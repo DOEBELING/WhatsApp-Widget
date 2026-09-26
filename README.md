@@ -240,9 +240,22 @@ Issues and pull requests are welcome. The widget is a single file without build 
 [`whatsapp-widget.js`](whatsapp-widget.js). To try your changes, serve the repository with any static
 web server (for example `python3 -m http.server`) and open the examples.
 
+Contributions are published under the same license as the project (AGPL-3.0-or-later with the
+[additional terms](ADDITIONAL-TERMS.md)).
+
 ## License
 
-[GPL-3.0](LICENSE) © [DÖBELING Projektbüro](https://doebeling.de)
+Free software under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later)
+with [additional terms](ADDITIONAL-TERMS.md). © 2025–2026 [DÖBELING Projektbüro](https://doebeling.de),
+Andreas Döbeling.
+
+In short (the license texts apply):
+
+- Any website may use the widget, also commercial ones. The website's own code stays under its own license.
+- You may change and share the widget. Changed versions stay under the AGPL, with their source code. This
+  also applies if you run a changed version of the PHP add-on for a website.
+- Author notices, including the one in the chat window, stay visible and unchanged. They must not be hidden
+  with CSS or JavaScript.
 
 WhatsApp is a trademark of WhatsApp LLC. This project is not affiliated with or endorsed by WhatsApp or Meta.
 The WhatsApp icon is from [Font Awesome Free](https://fontawesome.com) ([CC BY 4.0](https://fontawesome.com/license/free)).

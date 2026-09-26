@@ -1,7 +1,9 @@
 /*!
  * WhatsApp Widget v0.2.0-draft
  * https://github.com/DOEBELING/WhatsApp-Widget
- * License: GPL-3.0-or-later
+ * Copyright (C) 2025-2026 Andreas Doebeling, DOEBELING Projektbuero
+ * License: AGPL-3.0-or-later with additional terms (ADDITIONAL-TERMS.md in the
+ * repository): the author attribution in the chat window must stay visible.
  *
  * Looks like a live chat, but only opens WhatsApp (app or web) with a
  * prefilled message. No backend, no cookies, no tracking, no external requests.
