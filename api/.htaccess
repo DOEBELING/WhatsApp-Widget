@@ -1,0 +1,6 @@
+# Only the endpoints are public. lib.php and a local config.php must never be served.
+<FilesMatch "^(lib|config.*)\.php$">
+    Require all denied
+</FilesMatch>
+
+Options -Indexes

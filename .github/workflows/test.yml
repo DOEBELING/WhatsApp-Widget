@@ -1,0 +1,60 @@
+# Browser and HTTP tests for widget, PHP script, notification service and configurator.
+# Runs on every pull request and before every deployment (see deploy.yml).
+
+name: Tests
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mbstring
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+
+      - name: Check syntax
+        run: |
+          for file in api/*.php addons/php/*.php; do php -l "$file"; done
+          node --check whatsapp-widget.js
+
+      - name: Install Playwright
+        working-directory: tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run tests
+        working-directory: tests
+        env:
+          WAW_SHOTS: ${{ runner.temp }}/screenshots
+        run: npm test
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-php-${{ matrix.php }}
+          path: ${{ runner.temp }}/screenshots
+          if-no-files-found: ignore

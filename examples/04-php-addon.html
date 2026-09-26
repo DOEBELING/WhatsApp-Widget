@@ -16,7 +16,8 @@
   <a href="02-external-button.html">2 · Own buttons</a>
   <a href="03-javascript-api.html">3 · JavaScript API (DE)</a>
   <a href="04-php-addon.html" aria-current="page">4 · PHP add-on</a>
-  <a href="../">Documentation</a>
+  <a href="../">Configurator</a>
+  <a href="https://github.com/DOEBELING/WhatsApp-Widget#readme">Documentation</a>
 </nav>
 
 <main class="page">
@@ -31,7 +32,9 @@
     <h2>Example 4: Optional e-mail notification</h2>
     <p>The widget itself needs no server. If you want an e-mail for every message, upload the add-on
       <a href="https://github.com/DOEBELING/WhatsApp-Widget/blob/main/addons/php/whatsapp-notify.php"><code>whatsapp-notify.php</code></a>
-      to your own web server (PHP 8.1+), enter your e-mail address and point the widget to it:</p>
+      to your own web server (PHP 8.1+), enter your e-mail address and point the widget to it.
+      No PHP on your server? Use the hosted service instead: the <a href="../">configurator</a> gives you a
+      <code>data-site-key</code>.</p>
     <pre><code>&lt;script src="/js/whatsapp-widget.js"
         data-phone="+49 000 0000000"
         data-name="Studio Example"
