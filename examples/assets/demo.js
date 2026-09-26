@@ -41,7 +41,7 @@
     return originalOpen(url, ...args);
   };
 
-  // Example 4 uses the PHP add-on, which does not run on GitHub Pages.
+  // The examples send no e-mails.
   // Show the request instead of sending it.
   const originalFetch = window.fetch.bind(window);
   window.fetch = (resource, options = {}) => {

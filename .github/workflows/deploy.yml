@@ -1,0 +1,101 @@
+# Runs the tests, builds the site (main plus all release tags, see tools/build-site.sh)
+# and deploys it to the web server via rsync over SSH.
+# Setup: see "Deployment" in README.md.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://wa-widget.doebeling.de
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+    steps:
+      # Always build from main with all tags, also when a tag was pushed,
+      # so that a release never rolls back the rest of the site.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Build site
+        run: tools/build-site.sh "$RUNNER_TEMP/site"
+
+      - name: Check deployment settings
+        id: settings
+        run: |
+          if [ -z "$DEPLOY_HOST$DEPLOY_USER$DEPLOY_PATH$DEPLOY_SSH_KEY$DEPLOY_KNOWN_HOSTS" ]; then
+            echo "::notice::Deployment is not configured yet (no DEPLOY_* secrets). Nothing was deployed."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          failed=0
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is missing."
+              failed=1
+            fi
+          done
+          # rsync --delete must never run against "/", a top-level directory or a home directory.
+          case "$DEPLOY_PATH" in
+            /*/*/*) ;;
+            *)
+              echo "::error::DEPLOY_PATH must be an absolute path with at least three levels, e.g. /usr/www/users/name/whatsapp-widget"
+              failed=1
+              ;;
+          esac
+          case "$DEPLOY_PATH" in
+            *..*|*' '*)
+              echo "::error::DEPLOY_PATH must not contain '..' or spaces."
+              failed=1
+              ;;
+          esac
+          if [ "$failed" = 1 ]; then exit 1; fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up SSH
+        if: steps.settings.outputs.configured == 'true'
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Upload with rsync
+        if: steps.settings.outputs.configured == 'true'
+        run: |
+          # Protected files ("P") are never deleted on the server, even though they are not in the repository.
+          rsync --recursive --links --checksum --compress --delete --itemize-changes \
+            --chmod=D755,F644 \
+            --filter='P /.htaccess' --filter='P /.user.ini' --filter='P /.well-known/' \
+            --filter='P /dpa.html' --filter='P /api/config.php' \
+            -e "ssh -p ${DEPLOY_PORT:-22} -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+            "$RUNNER_TEMP/site/" "$DEPLOY_USER@$DEPLOY_HOST:${DEPLOY_PATH%/}/"
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
