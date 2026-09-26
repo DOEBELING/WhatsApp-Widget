@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhatsApp Widget – privacy-friendly chat button for your website</title>
+  <meta name="description" content="A chat window that looks live, but only opens WhatsApp. One script tag, no cookies, nothing is transmitted before “Send”.">
+  <link rel="stylesheet" href="examples/assets/examples.css">
+  <style>
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+    form.config { display: grid; gap: 14px; }
+    fieldset { margin: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: grid; gap: 12px; }
+    legend { padding: 0 6px; font-weight: 700; }
+    label { display: grid; gap: 4px; font-weight: 600; font-size: .95em; }
+    label small, .hint { font-weight: 400; color: var(--muted); font-size: .9em; }
+    input[type="text"], input[type="tel"], input[type="email"], input[type="url"], input[type="number"], select, textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid #cfc8bb; border-radius: 8px; background: #fff; color: var(--text); font: inherit; font-weight: 400;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+    .check input { margin-top: 5px; }
+    .radios { display: grid; gap: 6px; }
+    .color { display: flex; gap: 8px; }
+    .color input[type="color"] { width: 48px; height: 40px; padding: 2px; border: 1px solid #cfc8bb; border-radius: 8px; background: #fff; }
+    .sticky { position: sticky; top: 16px; display: grid; gap: 12px; }
+    .snippet pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+    .status { min-height: 1.5em; font-size: .95em; }
+    .status.ok { color: #0f766e; }
+    .status.error { color: #b42318; }
+    .success { padding: 12px 16px; background: #e6f4ef; border-left: 4px solid #0f766e; border-radius: 6px; }
+    .lang-switch { display: inline-flex; gap: 4px; }
+    .lang-switch button { padding: 2px 6px; border: 0; border-radius: 4px; background: none; color: #9be7c4; font: inherit; cursor: pointer; }
+    .lang-switch button[aria-pressed="true"] { background: rgba(255, 255, 255, .15); color: #fff; font-weight: 600; }
+    footer.site { padding: 24px 16px 120px; text-align: center; color: var(--muted); font-size: .9em; }
+    footer.site a { margin: 0 8px; }
+  </style>
+</head>
+<body>
+
+<nav class="demo-nav" aria-label="Main">
+  <strong>WhatsApp Widget</strong>
+  <a href="#configure" aria-current="page" data-i18n="nav.configurator">Configurator</a>
+  <a href="examples/01-minimal.html" data-i18n="nav.examples">Examples</a>
+  <a href="https://github.com/DOEBELING/WhatsApp-Widget#readme" data-i18n="nav.docs">Documentation</a>
+  <a href="https://github.com/DOEBELING/WhatsApp-Widget">GitHub</a>
+  <span class="lang-switch" role="group" aria-label="Language / Sprache">
+    <button type="button" data-lang="de" lang="de" aria-pressed="false">DE</button>
+    <button type="button" data-lang="en" lang="en" aria-pressed="true">EN</button>
+  </span>
+</nav>
+
+<main class="page" style="max-width: 1120px">
+  <header class="hero">
+    <h1 data-i18n="hero.title">WhatsApp chat for your website</h1>
+    <p data-i18n="hero.text">A chat window that looks live, but only opens WhatsApp with the message already filled in.
+      One script tag, no cookies, no tracking – nothing is transmitted before your visitor presses “Send”.
+      Optionally, you get every message by e-mail, too.</p>
+  </header>
+
+  <div id="setup-success" class="success" hidden data-i18n-html="setup.success">
+    <strong>E-mail notifications are active.</strong> Your code with the site key is below.
+    We also sent it to you by e-mail.
+  </div>
+
+  <section id="configure" class="layout">
+    <form class="config" id="config" novalidate>
+      <fieldset>
+        <legend data-i18n="contact.legend">Your contact</legend>
+        <label><span data-i18n="phone.label">WhatsApp number *</span>
+          <input type="tel" id="f-phone" required placeholder="+49 911 1234567" autocomplete="off">
+          <small data-i18n="phone.hint">International format with country code.</small>
+        </label>
+        <div class="row">
+          <label><span data-i18n="name.label">Name</span>
+            <input type="text" id="f-name" placeholder="Your Company" data-i18n-placeholder="name.placeholder"></label>
+          <label><span data-i18n="status.label">Status line</span>
+            <input type="text" id="f-status" placeholder="Usually replies within a day" data-i18n-placeholder="status.placeholder"></label>
+        </div>
+        <label><span data-i18n="welcome.label">Welcome messages</span>
+          <textarea id="f-welcome" placeholder="Hi there! 👋 How can we help you?" data-i18n-placeholder="welcome.default">Hi there! 👋 How can we help you?</textarea>
+          <small data-i18n="welcome.hint">One message per line, up to 3.</small>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend data-i18n="look.legend">Look and behaviour</legend>
+        <div class="row">
+          <label><span data-i18n="lang.label">Language</span>
+            <select id="f-lang">
+              <option value="" data-i18n="lang.page">Like the website</option>
+              <option value="de" data-i18n="lang.de">German</option>
+              <option value="en" data-i18n="lang.en">English</option>
+            </select>
+          </label>
+          <label><span data-i18n="position.label">Position</span>
+            <select id="f-position">
+              <option value="right" data-i18n="position.right">Bottom right</option>
+              <option value="left" data-i18n="position.left">Bottom left</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label><span data-i18n="color.label">Colour</span>
+            <span class="color">
+              <input type="color" id="f-color-picker" value="#075e54" aria-label="Pick a colour" data-i18n-aria-label="color.pick">
+              <input type="text" id="f-color" placeholder="WhatsApp green" data-i18n-placeholder="color.placeholder">
+            </span>
+          </label>
+          <label><span data-i18n="autoOpen.label">Open by itself after</span>
+            <input type="number" id="f-auto-open" min="0" max="120" placeholder="never" data-i18n-placeholder="autoOpen.placeholder">
+            <small data-i18n="autoOpen.hint">Seconds. Not on small screens.</small>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" id="f-launcher" checked>
+          <span data-i18n-html="launcher.label">Show the floating button <span class="hint">(without it, open the chat with your own buttons: <code>data-wa-open</code>)</span></span>
+        </label>
+        <label><span data-i18n="privacyUrl.label">Link to your privacy policy</span>
+          <input type="url" id="f-privacy-url" placeholder="https://www.example.com/privacy" data-i18n-placeholder="privacyUrl.placeholder">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend data-i18n="notify.legend">E-mail notification</legend>
+        <p class="hint" style="margin:0" data-i18n="notify.intro">Some visitors never press “Send” in WhatsApp, e.g. because WhatsApp Web is not set up.
+          With a notification, you still get the message and the visitor's phone number.</p>
+        <div class="radios" role="radiogroup">
+          <label class="check"><input type="radio" name="notify" value="none" checked> <span data-i18n="notify.none">No notification (nothing leaves the browser before “Send”)</span></label>
+          <label class="check"><input type="radio" name="notify" value="hosted"> <span data-i18n="notify.hosted">E-mail via this service (nothing to install)</span></label>
+          <label class="check"><input type="radio" name="notify" value="own"> <span data-i18n="notify.own">E-mail via my own PHP script</span></label>
+        </div>
+
+        <div id="notify-hosted" hidden>
+          <div style="display:grid; gap:12px">
+            <label><span data-i18n="email.label">Your e-mail address</span>
+              <input type="email" id="f-email" autocomplete="email" placeholder="you@example.com" data-i18n-placeholder="email.placeholder"></label>
+            <label><span data-i18n="domains.label">Your website</span>
+              <input type="text" id="f-domains" placeholder="example.com">
+              <small data-i18n="domains.hint">Only pages on this domain (and its www variant) can send messages. Up to 5, separated by commas.</small>
+            </label>
+            <label class="check"><input type="checkbox" id="f-dpa">
+              <span data-i18n-html="dpa.label">I accept the <a href="dpa.html" target="_blank" rel="noopener">data processing agreement</a> (Art. 28 GDPR). Messages are only passed through and not stored.</span>
+            </label>
+            <div><button class="button" type="button" id="f-register" data-i18n="register.button">Send confirmation link</button></div>
+            <p class="status" id="register-status" aria-live="polite"></p>
+            <label><span data-i18n="siteKey.label">Site key</span>
+              <input type="text" id="f-site-key" placeholder="appears here after the confirmation" data-i18n-placeholder="siteKey.placeholder" spellcheck="false"></label>
+          </div>
+        </div>
+
+        <div id="notify-own" hidden>
+          <label><span data-i18n="notifyUrl.label">URL of your script</span>
+            <input type="text" id="f-notify-url" placeholder="/whatsapp-notify.php">
+            <small data-i18n-html="notifyUrl.hint">Download <a href="https://github.com/DOEBELING/WhatsApp-Widget/blob/main/addons/php/whatsapp-notify.php">whatsapp-notify.php</a>, set your e-mail address and upload it (PHP 8.1+).</small>
+          </label>
+        </div>
+
+        <label id="ask-phone-row" hidden><span data-i18n="askPhone.label">Visitor's phone number</span>
+          <select id="f-ask-phone">
+            <option value="required" data-i18n="askPhone.required">Required (recommended)</option>
+            <option value="optional" data-i18n="askPhone.optional">Optional</option>
+            <option value="false" data-i18n="askPhone.false">Don't ask</option>
+          </select>
+        </label>
+      </fieldset>
+    </form>
+
+    <div class="sticky">
+      <div class="snippet">
+        <h2 data-i18n="code.title">Your code</h2>
+        <p class="hint" data-i18n-html="code.hint">Paste it into your website, before <code>&lt;/body&gt;</code>. The preview is in the corner of this page.</p>
+        <pre><code id="snippet"></code></pre>
+        <p><button class="button" type="button" id="copy" data-i18n="copy.button">Copy code</button> <span class="status" id="copy-status" aria-live="polite"></span></p>
+      </div>
+      <p class="note" data-i18n-html="selfHost">For the strictest privacy, <a href="whatsapp-widget.js" download>download whatsapp-widget.js</a>,
+        host it yourself and change <code>src</code>. Then the visitor's browser loads nothing from another server.</p>
+      <p class="status" id="preview-status" aria-live="polite"></p>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <a href="https://github.com/DOEBELING/WhatsApp-Widget" data-i18n="footer.source">Source code</a>
+  <a href="https://legal.doebeling.de/impressum/" data-i18n="footer.imprint">Imprint</a>
+  <a href="https://legal.doebeling.de/datenschutzerklaerung/" data-i18n="footer.privacy">Privacy policy</a>
+</footer>
+
+<script src="whatsapp-widget.js"></script>
+<script>
+(() => {
+  const SCRIPT_URL = 'https://whatsapp-widget.doebeling.dev/whatsapp-widget.js';
+
+  // Texts of this page. Entries used with data-i18n-html are trusted markup from this file only.
+  const TEXTS = {
+    en: {
+      'meta.title': 'WhatsApp Widget – privacy-friendly chat button for your website',
+      'meta.description': 'A chat window that looks live, but only opens WhatsApp. One script tag, no cookies, nothing is transmitted before “Send”.',
+      'nav.configurator': 'Configurator',
+      'nav.examples': 'Examples',
+      'nav.docs': 'Documentation',
+      'hero.title': 'WhatsApp chat for your website',
+      'hero.text': 'A chat window that looks live, but only opens WhatsApp with the message already filled in. One script tag, no cookies, no tracking – nothing is transmitted before your visitor presses “Send”. Optionally, you get every message by e-mail, too.',
+      'setup.success': '<strong>E-mail notifications are active.</strong> Your code with the site key is below. We also sent it to you by e-mail.',
+      'contact.legend': 'Your contact',
+      'phone.label': 'WhatsApp number *',
+      'phone.hint': 'International format with country code.',
+      'name.label': 'Name',
+      'name.placeholder': 'Your Company',
+      'status.label': 'Status line',
+      'status.placeholder': 'Usually replies within a day',
+      'welcome.label': 'Welcome messages',
+      'welcome.default': 'Hi there! 👋 How can we help you?',
+      'welcome.hint': 'One message per line, up to 3.',
+      'look.legend': 'Look and behaviour',
+      'lang.label': 'Language',
+      'lang.page': 'Like the website',
+      'lang.de': 'German',
+      'lang.en': 'English',
+      'position.label': 'Position',
+      'position.right': 'Bottom right',
+      'position.left': 'Bottom left',
+      'color.label': 'Colour',
+      'color.pick': 'Pick a colour',
+      'color.placeholder': 'WhatsApp green',
+      'autoOpen.label': 'Open by itself after',
+      'autoOpen.placeholder': 'never',
+      'autoOpen.hint': 'Seconds. Not on small screens.',
+      'launcher.label': 'Show the floating button <span class="hint">(without it, open the chat with your own buttons: <code>data-wa-open</code>)</span>',
+      'privacyUrl.label': 'Link to your privacy policy',
+      'privacyUrl.placeholder': 'https://www.example.com/privacy',
+      'notify.legend': 'E-mail notification',
+      'notify.intro': 'Some visitors never press “Send” in WhatsApp, e.g. because WhatsApp Web is not set up. With a notification, you still get the message and the visitor’s phone number.',
+      'notify.none': 'No notification (nothing leaves the browser before “Send”)',
+      'notify.hosted': 'E-mail via this service (nothing to install)',
+      'notify.own': 'E-mail via my own PHP script',
+      'email.label': 'Your e-mail address',
+      'email.placeholder': 'you@example.com',
+      'domains.label': 'Your website',
+      'domains.hint': 'Only pages on this domain (and its www variant) can send messages. Up to 5, separated by commas.',
+      'dpa.label': 'I accept the <a href="dpa.html" target="_blank" rel="noopener">data processing agreement</a> (Art. 28 GDPR). Messages are only passed through and not stored.',
+      'register.button': 'Send confirmation link',
+      'siteKey.label': 'Site key',
+      'siteKey.placeholder': 'appears here after the confirmation',
+      'siteKey.pending': '(after confirming your e-mail address)',
+      'notifyUrl.label': 'URL of your script',
+      'notifyUrl.hint': 'Download <a href="https://github.com/DOEBELING/WhatsApp-Widget/blob/main/addons/php/whatsapp-notify.php">whatsapp-notify.php</a>, set your e-mail address and upload it (PHP 8.1+).',
+      'askPhone.label': 'Visitor’s phone number',
+      'askPhone.required': 'Required (recommended)',
+      'askPhone.optional': 'Optional',
+      'askPhone.false': 'Don’t ask',
+      'code.title': 'Your code',
+      'code.hint': 'Paste it into your website, before <code>&lt;/body&gt;</code>. The preview is in the corner of this page.',
+      'copy.button': 'Copy code',
+      'copy.done': 'Copied.',
+      'copy.manual': 'Press Ctrl+C / ⌘+C to copy.',
+      'selfHost': 'For the strictest privacy, <a href="whatsapp-widget.js" download>download whatsapp-widget.js</a>, host it yourself and change <code>src</code>. Then the visitor’s browser loads nothing from another server.',
+      'footer.source': 'Source code',
+      'footer.imprint': 'Imprint',
+      'footer.privacy': 'Privacy policy',
+      'register.needPhone': 'Please enter your WhatsApp number first.',
+      'register.needEmail': 'Please enter a valid e-mail address.',
+      'register.needDomain': 'Please enter the domain of your website.',
+      'register.needDpa': 'Please accept the data processing agreement.',
+      'register.wait': 'One moment …',
+      'register.sent': (email) => `Done. Please open the link in the e-mail we sent to ${email}.`,
+      'register.limit': 'Too many requests. Please try again later.',
+      'register.failed': (status) => `That didn’t work (error ${status}). Please check your input.`,
+      'register.offline': 'The service is not reachable. Please try again later.',
+      'preview.opens': 'Preview: on your website, “Send” opens ',
+      'preview.link': 'WhatsApp with this message',
+      'preview.mail': ' and sends you the message by e-mail.',
+    },
+    de: {
+      'meta.title': 'WhatsApp-Widget – datenschutzfreundlicher Chat-Button für deine Website',
+      'meta.description': 'Ein Chatfenster, das live wirkt, aber nur WhatsApp öffnet. Ein Script-Tag, keine Cookies, vor „Senden“ wird nichts übertragen.',
+      'nav.configurator': 'Konfigurator',
+      'nav.examples': 'Beispiele',
+      'nav.docs': 'Dokumentation',
+      'hero.title': 'WhatsApp-Chat für deine Website',
+      'hero.text': 'Ein Chatfenster, das live wirkt, aber nur WhatsApp mit der fertigen Nachricht öffnet. Ein Script-Tag, keine Cookies, kein Tracking – bevor deine Besucher auf „Senden“ klicken, wird nichts übertragen. Auf Wunsch bekommst du jede Nachricht zusätzlich per E-Mail.',
+      'setup.success': '<strong>E-Mail-Benachrichtigungen sind aktiv.</strong> Deinen Code mit Site-Key findest du unten. Wir haben ihn dir auch per E-Mail geschickt.',
+      'contact.legend': 'Dein Kontakt',
+      'phone.label': 'WhatsApp-Nummer *',
+      'phone.hint': 'Internationales Format mit Ländervorwahl.',
+      'name.label': 'Name',
+      'name.placeholder': 'Deine Firma',
+      'status.label': 'Statuszeile',
+      'status.placeholder': 'Antwortet meist am selben Tag',
+      'welcome.label': 'Begrüßungsnachrichten',
+      'welcome.default': 'Hallo! 👋 Wie können wir helfen?',
+      'welcome.hint': 'Eine Nachricht pro Zeile, höchstens 3.',
+      'look.legend': 'Aussehen und Verhalten',
+      'lang.label': 'Sprache',
+      'lang.page': 'Wie die Website',
+      'lang.de': 'Deutsch',
+      'lang.en': 'Englisch',
+      'position.label': 'Position',
+      'position.right': 'Unten rechts',
+      'position.left': 'Unten links',
+      'color.label': 'Farbe',
+      'color.pick': 'Farbe wählen',
+      'color.placeholder': 'WhatsApp-Grün',
+      'autoOpen.label': 'Öffnet sich von selbst nach',
+      'autoOpen.placeholder': 'nie',
+      'autoOpen.hint': 'Sekunden. Nicht auf kleinen Bildschirmen.',
+      'launcher.label': 'Schwebenden Button anzeigen <span class="hint">(ohne ihn öffnest du den Chat mit eigenen Buttons: <code>data-wa-open</code>)</span>',
+      'privacyUrl.label': 'Link zu deiner Datenschutzerklärung',
+      'privacyUrl.placeholder': 'https://www.example.com/datenschutz',
+      'notify.legend': 'E-Mail-Benachrichtigung',
+      'notify.intro': 'Manche Besucher klicken in WhatsApp nie auf „Senden“, z. B. weil WhatsApp Web nicht eingerichtet ist. Mit der Benachrichtigung bekommst du Nachricht und Telefonnummer trotzdem.',
+      'notify.none': 'Keine Benachrichtigung (vor „Senden“ verlässt nichts den Browser)',
+      'notify.hosted': 'E-Mail über diesen Dienst (nichts zu installieren)',
+      'notify.own': 'E-Mail über mein eigenes PHP-Script',
+      'email.label': 'Deine E-Mail-Adresse',
+      'email.placeholder': 'du@example.com',
+      'domains.label': 'Deine Website',
+      'domains.hint': 'Nur Seiten dieser Domain (und ihrer www-Variante) können Nachrichten senden. Bis zu 5, durch Kommas getrennt.',
+      'dpa.label': 'Ich akzeptiere den <a href="dpa.html" target="_blank" rel="noopener">Vertrag zur Auftragsverarbeitung</a> (Art. 28 DSGVO). Nachrichten werden nur weitergeleitet, nicht gespeichert.',
+      'register.button': 'Bestätigungslink senden',
+      'siteKey.label': 'Site-Key',
+      'siteKey.placeholder': 'erscheint hier nach der Bestätigung',
+      'siteKey.pending': '(nach Bestätigung deiner E-Mail-Adresse)',
+      'notifyUrl.label': 'URL deines Scripts',
+      'notifyUrl.hint': 'Lade <a href="https://github.com/DOEBELING/WhatsApp-Widget/blob/main/addons/php/whatsapp-notify.php">whatsapp-notify.php</a> herunter, trage deine E-Mail-Adresse ein und lade die Datei hoch (PHP 8.1+).',
+      'askPhone.label': 'Telefonnummer der Besucher',
+      'askPhone.required': 'Pflichtfeld (empfohlen)',
+      'askPhone.optional': 'Freiwillig',
+      'askPhone.false': 'Nicht abfragen',
+      'code.title': 'Dein Code',
+      'code.hint': 'Füge ihn auf deiner Website vor <code>&lt;/body&gt;</code> ein. Die Vorschau siehst du in der Ecke dieser Seite.',
+      'copy.button': 'Code kopieren',
+      'copy.done': 'Kopiert.',
+      'copy.manual': 'Mit Strg+C / ⌘+C kopieren.',
+      'selfHost': 'Für maximalen Datenschutz <a href="whatsapp-widget.js" download>lade whatsapp-widget.js herunter</a>, hoste die Datei selbst und ändere <code>src</code>. Dann lädt der Browser deiner Besucher nichts von einem fremden Server.',
+      'footer.source': 'Quellcode',
+      'footer.imprint': 'Impressum',
+      'footer.privacy': 'Datenschutzerklärung',
+      'register.needPhone': 'Bitte gib zuerst deine WhatsApp-Nummer ein.',
+      'register.needEmail': 'Bitte gib eine gültige E-Mail-Adresse ein.',
+      'register.needDomain': 'Bitte gib die Domain deiner Website ein.',
+      'register.needDpa': 'Bitte akzeptiere den Vertrag zur Auftragsverarbeitung.',
+      'register.wait': 'Einen Moment …',
+      'register.sent': (email) => `Erledigt. Bitte öffne den Link in der E-Mail an ${email}.`,
+      'register.limit': 'Zu viele Anfragen. Bitte versuche es später noch einmal.',
+      'register.failed': (status) => `Das hat nicht geklappt (Fehler ${status}). Bitte prüfe deine Eingaben.`,
+      'register.offline': 'Der Dienst ist nicht erreichbar. Bitte versuche es später noch einmal.',
+      'preview.opens': 'Vorschau: Auf deiner Website öffnet „Senden“ ',
+      'preview.link': 'WhatsApp mit dieser Nachricht',
+      'preview.mail': ' und schickt dir die Nachricht per E-Mail.',
+    },
+  };
+
+  let lang = 'en';
+  const t = (key, ...args) => {
+    const text = TEXTS[lang][key] ?? TEXTS.en[key];
+    return typeof text === 'function' ? text(...args) : text;
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const form = $('config');
+  const fields = ['phone', 'name', 'status', 'welcome', 'lang', 'position', 'color', 'auto-open', 'launcher',
+    'privacy-url', 'email', 'domains', 'dpa', 'site-key', 'notify-url', 'ask-phone'];
+  const input = Object.fromEntries(fields.map((name) => [name, $(`f-${name}`)]));
+
+  /** Switches the page language without reload, so the form keeps its values. */
+  function setLanguage(next, updateUrl = true) {
+    const previousWelcome = t('welcome.default');
+    lang = TEXTS[next] ? next : 'en';
+    document.documentElement.lang = lang;
+    document.title = t('meta.title');
+    document.querySelector('meta[name="description"]').content = t('meta.description');
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-html]').forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+    document.querySelectorAll('[data-i18n-aria-label]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel)); });
+    document.querySelectorAll('.lang-switch button').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.lang === lang));
+    });
+    if (input.welcome.value.trim() === previousWelcome) input.welcome.value = t('welcome.default');
+    ['register-status', 'copy-status', 'preview-status'].forEach((id) => { $(id).textContent = ''; });
+    if (updateUrl) {
+      const url = new URL(location.href);
+      url.searchParams.set('lang', lang);
+      history.replaceState(null, '', url);
+    }
+  }
+
+  function initialLanguage() {
+    const fromUrl = new URLSearchParams(location.search).get('lang');
+    if (TEXTS[fromUrl]) return fromUrl;
+    const fromBrowser = (navigator.languages || [navigator.language]).map((l) => String(l).slice(0, 2).toLowerCase());
+    return fromBrowser.find((l) => TEXTS[l]) || 'en';
+  }
+
+  const notifyMode = () => form.querySelector('input[name="notify"]:checked').value;
+
+  /** Widget options as data attributes (without key/URL of the notification). */
+  function options() {
+    const o = {};
+    const set = (name, value) => { if (value !== '' && value !== null) o[name] = String(value); };
+    set('phone', input.phone.value.trim());
+    set('name', input.name.value.trim());
+    set('status', input.status.value.trim());
+    set('welcome', input.welcome.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 3).join('|'));
+    set('lang', input.lang.value);
+    if (input.position.value === 'left') set('position', 'left');
+    set('color', input.color.value.trim());
+    set('auto-open', input['auto-open'].value.trim());
+    if (!input.launcher.checked) set('launcher', 'false');
+    set('privacy-url', input['privacy-url'].value.trim());
+    if (notifyMode() !== 'none' && input['ask-phone'].value !== 'required') set('ask-phone', input['ask-phone'].value);
+    return o;
+  }
+
+  const escapeHtml = (text) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  function renderSnippet() {
+    const attributes = { ...options() };
+    if (!attributes.phone) attributes.phone = '+49 …';
+    const mode = notifyMode();
+    if (mode === 'hosted') attributes['site-key'] = input['site-key'].value.trim() || t('siteKey.pending');
+    if (mode === 'own') attributes['notify-url'] = input['notify-url'].value.trim() || '/whatsapp-notify.php';
+    const lines = [`<script src="${SCRIPT_URL}"`];
+    for (const [name, value] of Object.entries(attributes)) lines.push(`        data-${name}="${escapeHtml(value)}"`);
+    lines.push('        defer></' + 'script>');
+    $('snippet').textContent = lines.join('\n');
+  }
+
+  // Preview: the widget on this page, with the current settings.
+  let wasOpen = true;
+  let firstPreview = true;
+  document.addEventListener('whatsapp-widget:open', () => { wasOpen = true; });
+  document.addEventListener('whatsapp-widget:close', () => { wasOpen = false; });
+  document.addEventListener('whatsapp-widget:send', (event) => {
+    event.preventDefault();
+    const status = $('preview-status');
+    status.textContent = t('preview.opens');
+    const link = document.createElement('a');
+    link.href = event.detail.url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = t('preview.link');
+    status.append(link, notifyMode() === 'none' ? '.' : t('preview.mail'));
+  });
+
+  function renderPreview() {
+    const o = options();
+    const config = {
+      phone: o.phone || '+49 000 0000000',
+      name: o.name || t('name.placeholder'),
+      status: o.status,
+      welcome: o.welcome ? o.welcome.split('|') : [],
+      lang: o.lang || lang,
+      position: o.position,
+      color: o.color,
+      launcher: o.launcher !== 'false',
+      privacyUrl: o['privacy-url'],
+      typing: firstPreview,
+    };
+    if (notifyMode() !== 'none') {
+      config.notifyUrl = '#preview'; // shows the phone field and notice; sending is intercepted above
+      config.askPhone = o['ask-phone'] || 'required';
+    }
+    if (!WhatsAppWidget.init(config)) return;
+    if (wasOpen) WhatsAppWidget.open({ focus: false });
+    firstPreview = false;
+  }
+
+  let timer;
+  function update() {
+    $('notify-hosted').hidden = notifyMode() !== 'hosted';
+    $('notify-own').hidden = notifyMode() !== 'own';
+    $('ask-phone-row').hidden = notifyMode() === 'none';
+    renderSnippet();
+    clearTimeout(timer);
+    timer = setTimeout(renderPreview, 300);
+  }
+
+  form.addEventListener('input', update);
+  form.addEventListener('change', update);
+  input.color.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(input.color.value)) $('f-color-picker').value = input.color.value;
+  });
+  $('f-color-picker').addEventListener('input', (event) => {
+    input.color.value = event.target.value;
+    update();
+  });
+  document.querySelectorAll('.lang-switch button').forEach((button) => {
+    button.addEventListener('click', () => {
+      setLanguage(button.dataset.lang);
+      update();
+    });
+  });
+
+  // Registration for the hosted e-mail notification (double opt-in).
+  $('f-register').addEventListener('click', async () => {
+    const status = $('register-status');
+    const say = (text, type = '') => { status.textContent = text; status.className = `status ${type}`; };
+    const email = input.email.value.trim();
+    if (!input.phone.value.trim()) return say(t('register.needPhone'), 'error');
+    if (!input.email.checkValidity() || !email) return say(t('register.needEmail'), 'error');
+    if (!input.domains.value.trim()) return say(t('register.needDomain'), 'error');
+    if (!input.dpa.checked) return say(t('register.needDpa'), 'error');
+
+    $('f-register').disabled = true;
+    say(t('register.wait'));
+    try {
+      const pow = await WhatsAppWidget.proofOfWork(`register:${email.toLowerCase()}`);
+      // The mails to the site owner use the language of this page.
+      const body = new URLSearchParams({
+        email, domains: input.domains.value, lang, dpa: '1', pow, options: JSON.stringify(options()),
+      });
+      const response = await fetch('api/register.php', { method: 'POST', body, credentials: 'omit' });
+      if (response.status === 202) say(t('register.sent', email), 'ok');
+      else if (response.status === 429) say(t('register.limit'), 'error');
+      else say(t('register.failed', response.status), 'error');
+    } catch (error) {
+      say(t('register.offline'), 'error');
+    }
+    $('f-register').disabled = false;
+  });
+
+  $('copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('snippet').textContent);
+      $('copy-status').textContent = t('copy.done');
+    } catch (error) {
+      getSelection().selectAllChildren($('snippet'));
+      $('copy-status').textContent = t('copy.manual');
+    }
+  });
+
+  // Back from the confirmation link: #setup=<base64url(JSON {k: site key, o: options})>
+  function restoreSetup() {
+    const match = location.hash.match(/^#setup=([A-Za-z0-9_-]+)$/);
+    if (!match) return;
+    try {
+      const base64 = match[1].replace(/-/g, '+').replace(/_/g, '/');
+      const json = new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+      const { k, o } = JSON.parse(json);
+      for (const [name, value] of Object.entries(o || {})) {
+        const field = input[name];
+        if (!field) continue;
+        if (name === 'welcome') field.value = value.split('|').join('\n');
+        else if (name === 'launcher') field.checked = value !== 'false';
+        else field.value = value;
+      }
+      if (o && o.color) $('f-color-picker').value = o.color;
+      input['site-key'].value = k;
+      form.querySelector('input[name="notify"][value="hosted"]').checked = true;
+      $('setup-success').hidden = false;
+      history.replaceState(null, '', location.pathname + location.search);
+    } catch (error) {
+      // ignore a broken link; the key is also in the e-mail
+    }
+  }
+
+  setLanguage(initialLanguage(), false);
+  restoreSetup();
+  update();
+})();
+</script>
+</body>
+</html>

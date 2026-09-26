@@ -5,7 +5,8 @@
  *
  * Looks like a live chat, but only opens WhatsApp (app or web) with a
  * prefilled message. No backend, no cookies, no tracking, no external requests.
- * Optional: notify your own server (see addons/php/) before WhatsApp opens.
+ * Optional: e-mail notification via the hosted service (data-site-key) or your
+ * own server (data-notify-url, see addons/php/).
  *
  * WhatsApp icon: Font Awesome Free 6 by @fontawesome - https://fontawesome.com
  * License: CC BY 4.0 - https://fontawesome.com/license/free
@@ -17,6 +18,9 @@
   const LOG_PREFIX = '[WhatsAppWidget]';
   const EVENT_PREFIX = 'whatsapp-widget:';
   const MAX_WELCOME_MESSAGES = 3;
+  const HOSTED_NOTIFY_URL = 'https://whatsapp-widget.doebeling.dev/api/notify.php';
+  const POW_BITS = 18;          // proof of work for notifications, see proofOfWork()
+  const POW_MAX_AGE = 600;      // seconds; the server accepts proofs up to 15 minutes old
 
   const DEFAULTS = {
     phone: '',            // required, international format, e.g. '+49 911 1234567'
@@ -36,12 +40,15 @@
     color: '',            // primary colour for header, launcher and send button
     privacyNotice: null,  // null = localised default, '' = hide
     privacyUrl: '',       // link to your privacy policy
-    typing: true,         // "typing…" animation before welcome messages
-    notifyUrl: '',        // optional self-hosted endpoint that receives the message (see addons/php/)
+    typing: true,         // "typing..." animation before welcome messages
+    siteKey: '',          // site key of the hosted e-mail notification (from the configurator)
+    notifyUrl: '',        // own endpoint that receives the message (see addons/php/); set by siteKey
     askPhone: null,       // 'required' | 'optional' | false - visitor's number; default 'required' with notifyUrl
     countryCode: '+49',   // the phone field starts with this country code; numbers need one
   };
 
+  // Non-ASCII characters are written as \u escapes, so the texts also work on
+  // websites that don't use UTF-8 (the script inherits the page's encoding).
   const I18N = {
     en: {
       open: 'Open WhatsApp chat',
@@ -49,35 +56,35 @@
       placeholder: 'Type a message',
       inputLabel: 'Message',
       send: 'Send',
-      typing: 'typing…',
-      privacy: 'Nothing is transmitted before you click “Send”. After that, your message and contact details go to WhatsApp (Meta).',
+      typing: 'typing\u2026',
+      privacy: 'Nothing is transmitted before you click \u201cSend\u201d. After that, your message and contact details go to WhatsApp (Meta).',
       privacyLink: 'Privacy policy',
       opened: 'WhatsApp has been opened in a new tab. Please send your message there.',
       openWhatsApp: 'Open WhatsApp',
       locked: 'Continue in WhatsApp',
       unread: (n) => `${n} unread message${n === 1 ? '' : 's'}`,
-      privacyNotify: (askPhone) => `Nothing is transmitted before you click “Send”. After that, your message${{ required: ' and phone number', optional: ' and phone number (if given)' }[askPhone] || ''} go${askPhone ? '' : 'es'} to us by e-mail, and your message and contact details go to WhatsApp (Meta).`,
+      privacyNotify: (askPhone) => `Nothing is transmitted before you click \u201cSend\u201d. After that, your message${{ required: ' and phone number', optional: ' and phone number (if given)' }[askPhone] || ''} go${askPhone ? '' : 'es'} to us by e-mail, and your message and contact details go to WhatsApp (Meta).`,
       phoneLabel: 'Your phone/WhatsApp number',
       phoneOptional: 'Your phone/WhatsApp number (optional)',
       notifyFailed: 'Your message could not be sent to us. Please send it in WhatsApp.',
     },
     de: {
-      open: 'WhatsApp-Chat öffnen',
-      close: 'Chat schließen',
+      open: 'WhatsApp-Chat \u00f6ffnen',
+      close: 'Chat schlie\u00dfen',
       placeholder: 'Nachricht schreiben',
       inputLabel: 'Nachricht',
       send: 'Senden',
-      typing: 'schreibt …',
-      privacy: 'Vor dem Klick auf „Senden“ wird nichts übertragen. Danach gehen Nachricht und Kontaktdaten an WhatsApp (Meta).',
-      privacyLink: 'Datenschutzerklärung',
-      opened: 'WhatsApp wurde in einem neuen Tab geöffnet. Bitte die Nachricht dort absenden.',
-      openWhatsApp: 'WhatsApp öffnen',
+      typing: 'schreibt \u2026',
+      privacy: 'Vor dem Klick auf \u201eSenden\u201c wird nichts \u00fcbertragen. Danach gehen Nachricht und Kontaktdaten an WhatsApp (Meta).',
+      privacyLink: 'Datenschutzerkl\u00e4rung',
+      opened: 'WhatsApp wurde in einem neuen Tab ge\u00f6ffnet. Bitte die Nachricht dort absenden.',
+      openWhatsApp: 'WhatsApp \u00f6ffnen',
       locked: 'Weiter in WhatsApp',
       unread: (n) => `${n} ungelesene Nachricht${n === 1 ? '' : 'en'}`,
-      privacyNotify: (askPhone) => `Vor dem Klick auf „Senden“ wird nichts übertragen. Danach gehen Nachricht${{ required: ' und Telefonnummer', optional: ' und ggf. Telefonnummer' }[askPhone] || ''} per E-Mail an uns sowie Nachricht und Kontaktdaten an WhatsApp (Meta).`,
+      privacyNotify: (askPhone) => `Vor dem Klick auf \u201eSenden\u201c wird nichts \u00fcbertragen. Danach gehen Nachricht${{ required: ' und Telefonnummer', optional: ' und ggf. Telefonnummer' }[askPhone] || ''} per E-Mail an uns sowie Nachricht und Kontaktdaten an WhatsApp (Meta).`,
       phoneLabel: 'Telefon-/WhatsApp-Nummer',
       phoneOptional: 'Telefon-/WhatsApp-Nummer (optional)',
-      notifyFailed: 'Die Nachricht konnte nicht an uns übermittelt werden. Bitte in WhatsApp absenden.',
+      notifyFailed: 'Die Nachricht konnte nicht an uns \u00fcbermittelt werden. Bitte in WhatsApp absenden.',
     },
   };
 
@@ -486,6 +493,105 @@
     return /^\+[1-9][\d\s()./-]*$/.test(value) && digits.length >= 8 && digits.length <= 15;
   }
 
+  // SHA-256 (FIPS 180-4) for the proof of work. crypto.subtle is async per hash
+  // and far too slow for hundreds of thousands of small hashes.
+  const SHA256_K = new Int32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  ]);
+  const SHA256_INIT = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+
+  /** Processes one 64-byte block (bytes[offset..offset+63]) into state. */
+  function sha256Block(state, bytes, offset, w) {
+    for (let i = 0; i < 16; i++) {
+      const j = offset + i * 4;
+      w[i] = (bytes[j] << 24) | (bytes[j + 1] << 16) | (bytes[j + 2] << 8) | bytes[j + 3];
+    }
+    for (let i = 16; i < 64; i++) {
+      const x = w[i - 15];
+      const y = w[i - 2];
+      const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+      const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = state;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7)))
+        + ((e & f) ^ (~e & g)) + SHA256_K[i] + w[i]) | 0;
+      const t2 = ((((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10)))
+        + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0;
+      d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    state[0] = (state[0] + a) | 0; state[1] = (state[1] + b) | 0;
+    state[2] = (state[2] + c) | 0; state[3] = (state[3] + d) | 0;
+    state[4] = (state[4] + e) | 0; state[5] = (state[5] + f) | 0;
+    state[6] = (state[6] + g) | 0; state[7] = (state[7] + h) | 0;
+  }
+
+  /** Pads the message and hashes all remaining blocks, starting from state after `done` bytes. */
+  function sha256Finish(state, bytes, done, totalLength, w) {
+    const rest = bytes.length - done;
+    const padded = new Uint8Array(rest + 9 <= 64 ? 64 : 128);
+    padded.set(bytes.subarray(done));
+    padded[rest] = 0x80;
+    const bits = totalLength * 8;
+    const end = padded.length;
+    padded[end - 5] = Math.floor(bits / 2 ** 32) & 0xff;
+    padded[end - 4] = (bits >>> 24) & 0xff;
+    padded[end - 3] = (bits >>> 16) & 0xff;
+    padded[end - 2] = (bits >>> 8) & 0xff;
+    padded[end - 1] = bits & 0xff;
+    for (let offset = 0; offset < end; offset += 64) sha256Block(state, padded, offset, w);
+    return state;
+  }
+
+  function sha256Hex(text) {
+    const bytes = new TextEncoder().encode(text);
+    const state = SHA256_INIT.slice();
+    const w = new Int32Array(64);
+    const full = bytes.length - (bytes.length % 64);
+    for (let offset = 0; offset < full; offset += 64) sha256Block(state, bytes, offset, w);
+    sha256Finish(state, bytes.subarray(0, bytes.length), full, bytes.length, w);
+    return state.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('');
+  }
+
+  /**
+   * Proof of work against automated abuse of the e-mail notification (hashcash):
+   * finds a number so that sha256("waw1:<time>:<sha256(scope)>:<number>") starts with
+   * `bits` zero bits. Takes about a second, runs while the visitor types, sends nothing.
+   */
+  async function proofOfWork(scope, bits = POW_BITS) {
+    const time = Math.floor(Date.now() / 1000);
+    const prefix = new TextEncoder().encode(`waw1:${time}:${sha256Hex(scope)}:`);
+    const full = prefix.length - (prefix.length % 64);
+    const w = new Int32Array(64);
+    const midstate = SHA256_INIT.slice();
+    for (let offset = 0; offset < full; offset += 64) sha256Block(midstate, prefix, offset, w);
+    const tail = prefix.subarray(full);
+    const buffer = new Uint8Array(tail.length + 16);
+    buffer.set(tail);
+    const mask = bits >= 32 ? -1 : ~(-1 >>> bits);
+    // Random start, so visitors of the same site don't find the same (one-time) proof in the same second.
+    const start = Math.floor(Math.random() * 2 ** 40);
+    for (let nonce = start; ; nonce++) {
+      const digits = String(nonce);
+      for (let i = 0; i < digits.length; i++) buffer[tail.length + i] = digits.charCodeAt(i);
+      const message = buffer.subarray(0, tail.length + digits.length);
+      const state = sha256Finish(midstate.slice(), message, 0, full + message.length, w);
+      if ((state[0] & mask) === 0 && (bits <= 32 || state[1] >>> (64 - bits) === 0)) {
+        return `${time}:${nonce}`;
+      }
+      if ((nonce - start) % 20000 === 19999) await sleep(0); // keep the page responsive
+    }
+  }
+
   function buildUrl(phone, text, target) {
     const message = encodeURIComponent(text || '');
     switch (target) {
@@ -539,6 +645,7 @@
       privacyNotice: data.privacyNotice,
       privacyUrl: data.privacyUrl,
       typing: data.typing,
+      siteKey: data.siteKey,
       notifyUrl: data.notifyUrl,
       askPhone: data.askPhone,
       countryCode: data.countryCode,
@@ -570,6 +677,7 @@
     config.autoOpen = toSeconds(config.autoOpen);
     config.target = ['web', 'app'].includes(config.target) ? config.target : 'auto';
     config.theme = ['dark', 'auto'].includes(config.theme) ? config.theme : 'light';
+    if (config.siteKey && !config.notifyUrl) config.notifyUrl = HOSTED_NOTIFY_URL;
     if (config.askPhone === null || config.askPhone === undefined || config.askPhone === '') {
       config.askPhone = config.notifyUrl ? 'required' : false; // a message without a number can't be answered
     }
@@ -721,7 +829,10 @@
       this.window.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') this.close();
       });
-      this.input.addEventListener('input', () => this.updateComposer());
+      this.input.addEventListener('input', () => {
+        this.updateComposer();
+        if (this.config.notifyUrl && !this.pow) this.startProofOfWork();
+      });
       this.input.addEventListener('keydown', (event) => {
         const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !coarsePointer) {
@@ -805,11 +916,16 @@
       const proceed = this.emit('send', { message, url, phone }, true);
       if (!proceed) return;
 
-      if (this.config.notifyUrl) this.notify({ message, phone });
+      const notifying = this.config.notifyUrl ? this.notify({ message, phone }) : null;
 
-      // Open WhatsApp synchronously inside the click/keypress handler,
-      // otherwise browsers treat it as an unwanted popup.
-      this.openWhatsApp(url);
+      if (this.config.target === 'app') {
+        // Leaving the page could cancel the notification, so wait for it.
+        Promise.resolve(notifying).finally(() => this.openWhatsApp(url));
+      } else {
+        // Open WhatsApp synchronously inside the click/keypress handler,
+        // otherwise browsers treat it as an unwanted popup.
+        this.openWhatsApp(url);
+      }
 
       this.addBubble('out', message);
       this.lock(url);
@@ -864,16 +980,35 @@
      * Uses a "simple" form POST (no CORS preflight) with keepalive, so the request
      * finishes even if the page navigates to the WhatsApp app. Sends no cookies.
      */
-    notify({ message, phone }) {
-      const body = new URLSearchParams({ message, page: window.location.origin + window.location.pathname });
-      if (phone) body.append('phone', phone);
-      const done = (ok, status) => {
-        if (!ok) this.addInfo(this.t.notifyFailed);
-        this.emit('notify', { ok, status });
-      };
-      fetch(this.config.notifyUrl, { method: 'POST', body, keepalive: true, credentials: 'omit' })
-        .then((response) => done(response.ok, response.status))
-        .catch(() => done(false, 0));
+    async notify({ message, phone }) {
+      let ok = false;
+      let status = 0;
+      const claimed = this.startProofOfWork(true);
+      this.pow = null; // each proof of work can be used only once; the next message starts a new one
+      try {
+        const pow = await claimed;
+        const body = new URLSearchParams({ message, pow, page: window.location.origin + window.location.pathname });
+        if (phone) body.append('phone', phone);
+        if (this.config.siteKey) body.append('key', this.config.siteKey);
+        const response = await fetch(this.config.notifyUrl, { method: 'POST', body, keepalive: true, credentials: 'omit' });
+        // Both the add-on and the hosted service answer 204. A 200 usually means a wrong URL
+        // that returns a normal page, so it must not count as delivered.
+        ok = response.status === 204;
+        status = response.status;
+      } catch (error) {
+        // network error or blocked request: the visitor gets the hint below
+      }
+      if (!ok) this.addInfo(this.t.notifyFailed);
+      this.emit('notify', { ok, status });
+    }
+
+    /** Starts the proof of work (once per message). With `fresh`, replaces a proof that is too old. */
+    startProofOfWork(fresh = false) {
+      if (fresh && this.pow && Date.now() - this.pow.started > POW_MAX_AGE * 1000) this.pow = null;
+      if (!this.pow) {
+        this.pow = { started: Date.now(), result: proofOfWork(this.config.siteKey || window.location.host) };
+      }
+      return this.pow.result;
     }
 
     addInfo(text) {
@@ -1004,6 +1139,7 @@
       if (instance) instance.destroy();
       instance = null;
     },
+    proofOfWork: (scope, bits) => proofOfWork(String(scope), bits),
     buildUrl(phone, message, target) {
       const normalized = normalizePhone(phone);
       return normalized ? buildUrl(normalized, message, target) : '';

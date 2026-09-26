@@ -15,8 +15,12 @@
  *   3. Add data-notify-url="/whatsapp-notify.php" to the widget's script tag.
  *   4. Mention the transfer in your privacy policy and set data-privacy-url.
  *
- * The script stores nothing and writes no logs. The only file it writes is a
- * counter for the hourly limit, which contains timestamps but no personal data.
+ * The script stores nothing and writes no logs. It only writes a counter for the
+ * hourly limit and short-lived markers for used proofs of work, both without
+ * personal data.
+ *
+ * Don't want to run PHP? Use the hosted service instead: get a site key in the
+ * configurator on https://whatsapp-widget.doebeling.dev.
  */
 
 declare(strict_types=1);
@@ -50,6 +54,10 @@ $config = [
 
     // Simple protection against abuse: maximum number of mails per hour (all visitors together).
     'max_mails_per_hour' => 30,
+
+    // Proof of work the widget has to deliver (leading zero bits of a SHA-256 hash).
+    // The widget computes 18 bits while the visitor types. 0 switches the check off.
+    'pow_bits' => 18,
 ];
 
 // ---------------------------------------------------------------------------
@@ -106,6 +114,53 @@ function toWhatsAppNumber(string $phone, string $defaultCountryCode): string
         return $defaultCountryCode . substr($digits, 1);
     }
     return $digits;
+}
+
+function leadingZeroBits(string $bytes): int
+{
+    $bits = 0;
+    foreach (str_split($bytes) as $char) {
+        $byte = ord($char);
+        if ($byte === 0) {
+            $bits += 8;
+            continue;
+        }
+        while (($byte & 0x80) === 0) {
+            $bits++;
+            $byte <<= 1;
+        }
+        break;
+    }
+    return $bits;
+}
+
+/**
+ * Checks the widget's proof of work: sha256("waw1:<time>:<sha256(host)>:<nonce>") must start
+ * with $bits zero bits, may be at most 15 minutes old and can be used only once.
+ */
+function isValidProofOfWork(string $pow, string $host, int $bits): bool
+{
+    if ($bits <= 0) {
+        return true;
+    }
+    if (!preg_match('/^(\d{9,11}):(\d{1,15})$/', $pow, $m) || abs(time() - (int) $m[1]) > 900) {
+        return false;
+    }
+    $hash = hash('sha256', 'waw1:' . $m[1] . ':' . hash('sha256', $host) . ':' . $m[2], true);
+    if (leadingZeroBits($hash) < $bits) {
+        return false;
+    }
+    $used = sys_get_temp_dir() . '/whatsapp-notify-pow-' . hash('sha256', __FILE__ . $pow);
+    foreach (glob(sys_get_temp_dir() . '/whatsapp-notify-pow-*') ?: [] as $file) {
+        if (filemtime($file) < time() - 1800) {
+            @unlink($file);
+        }
+    }
+    if (is_file($used)) {
+        return false;
+    }
+    touch($used);
+    return true;
 }
 
 /** Global hourly limit, stored as a list of timestamps in the temp directory. */
@@ -165,6 +220,11 @@ if ($phone === '' ? $config['phone_required'] : !isPlausiblePhone($phone)) {
 }
 if ($page !== '' && (strlen($page) > 500 || !preg_match('#^https?://#i', $page))) {
     $page = '';
+}
+$originHost = strtolower((string) parse_url($origin, PHP_URL_HOST))
+    . (parse_url($origin, PHP_URL_PORT) ? ':' . parse_url($origin, PHP_URL_PORT) : '');
+if (!isValidProofOfWork(trim((string) ($_POST['pow'] ?? '')), $originHost, (int) $config['pow_bits'])) {
+    respond(403);
 }
 if (!withinRateLimit($config['max_mails_per_hour'])) {
     respond(429);
