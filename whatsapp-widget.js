@@ -107,7 +107,7 @@
       --_muted: var(--waw-muted, #667781);
       --_offset: var(--waw-offset, 20px);
       position: fixed;
-      bottom: var(--_offset);
+      bottom: calc(var(--_offset) + var(--_keyboard, 0px)); /* --_keyboard: see fitToViewport() */
       right: var(--_offset);
       z-index: var(--waw-z-index, 2147483000);
       display: flex;
@@ -396,6 +396,11 @@
       animation: waw-pop .2s ease-out;
     }
 
+    /* On-screen keyboard open (see fitToViewport): the chat uses the space above it, the
+       launcher is hidden meanwhile (the header has its own close button) */
+    .waw[data-keyboard] .waw-launcher { display: none; }
+    .waw[data-keyboard] .waw-window { max-height: max(120px, calc(var(--_viewport) - var(--_offset) - 28px)); }
+
     @keyframes waw-pop { from { opacity: 0; transform: translateY(4px); } }
     @keyframes waw-blink { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
     @keyframes waw-pulse { 35% { transform: scale(1.12); } }
@@ -601,6 +606,7 @@
       this.timers = [];
       this.returnFocus = null;
       this.onDocumentClick = this.onDocumentClick.bind(this);
+      this.fitToViewport = this.fitToViewport.bind(this);
       this.render();
       document.addEventListener('click', this.onDocumentClick);
       if (config.autoOpen !== false) this.scheduleAutoOpen(config.autoOpen);
@@ -699,6 +705,7 @@
         'data-theme': config.theme,
         lang: config.lang,
       }, [this.window]);
+      this.wrapper = wrapper;
 
       if (config.launcher) {
         this.launcher = el('button', {
@@ -749,6 +756,7 @@
       this.isOpen = true;
       this.returnFocus = document.activeElement;
       this.window.hidden = false;
+      this.watchViewport(true);
       this.updateComposer(); // needs a visible textarea to measure its height
       void this.window.offsetWidth; // restart the CSS transition
       this.window.classList.add('is-open');
@@ -765,6 +773,7 @@
     close() {
       if (!this.isOpen) return;
       this.isOpen = false;
+      this.watchViewport(false);
       this.window.classList.remove('is-open');
       if (this.launcher) this.launcher.setAttribute('aria-expanded', 'false');
       const hide = () => {
@@ -789,6 +798,7 @@
     destroy() {
       this.timers.forEach(clearTimeout);
       document.removeEventListener('click', this.onDocumentClick);
+      this.watchViewport(false);
       this.host.remove();
     }
 
@@ -960,6 +970,42 @@
       event.preventDefault();
       const message = trigger.getAttribute('data-wa-open');
       this.open(message ? { message } : {});
+    }
+
+    // On phones the keyboard often shrinks only the visible area (visual viewport), not the
+    // layout viewport the widget is fixed to. Without this, the input stays behind the keyboard.
+    watchViewport(on) {
+      const viewport = window.visualViewport;
+      if (!viewport) return;
+      const method = on ? 'addEventListener' : 'removeEventListener';
+      viewport[method]('resize', this.fitToViewport);
+      viewport[method]('scroll', this.fitToViewport);
+      if (on) this.fitToViewport();
+      else this.setViewportSize(null);
+    }
+
+    fitToViewport() {
+      const viewport = window.visualViewport;
+      // Zoomed in: keep the widget fixed to the page as before
+      if (!viewport || Math.abs(viewport.scale - 1) > 0.01) {
+        this.setViewportSize(null);
+        return;
+      }
+      const hidden = window.innerHeight - viewport.height - viewport.offsetTop;
+      this.setViewportSize({ hidden: Math.max(0, Math.round(hidden)), height: Math.round(viewport.height) });
+    }
+
+    setViewportSize(size) {
+      const { style } = this.wrapper;
+      if (size) {
+        style.setProperty('--_keyboard', `${size.hidden}px`);
+        style.setProperty('--_viewport', `${size.height}px`);
+      } else {
+        style.removeProperty('--_keyboard');
+        style.removeProperty('--_viewport');
+      }
+      // Small differences come from the browser's address bar, not from a keyboard
+      this.wrapper.toggleAttribute('data-keyboard', Boolean(size && size.hidden > 80));
     }
 
     later(callback, ms) {
