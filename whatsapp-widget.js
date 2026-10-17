@@ -722,9 +722,20 @@
         if (event.key === 'Escape') this.close();
       });
       this.input.addEventListener('input', () => this.updateComposer());
+      // Enter sends, Shift+Enter adds a line break. Decide when the browser is about to insert
+      // the line break, not on keydown: some systems report Enter as part of a text composition
+      // (e.g. Windows text suggestions), and an Enter that only confirms an input method
+      // inserts no line break. beforeinput has no modifier keys, so keydown remembers Shift.
+      let shiftEnter = false;
       this.input.addEventListener('keydown', (event) => {
-        const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !coarsePointer) {
+        shiftEnter = event.key === 'Enter' && event.shiftKey;
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
+          event.preventDefault();
+          this.send();
+        }
+      });
+      this.input.addEventListener('beforeinput', (event) => {
+        if (['insertLineBreak', 'insertParagraph'].includes(event.inputType) && !shiftEnter) {
           event.preventDefault();
           this.send();
         }
